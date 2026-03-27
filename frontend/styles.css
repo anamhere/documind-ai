@@ -408,6 +408,47 @@ body {
     letter-spacing: 0.08em;
 }
 
+.header-tools {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.tool-btn {
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-glass);
+    color: var(--text-secondary);
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    font-size: 0.9rem;
+    padding: 0;
+}
+
+.tool-btn:hover {
+    background: var(--bg-glass-hover);
+    color: var(--text-primary);
+    border-color: var(--border-color-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.tool-btn.loading {
+    animation: toolRotate 1s linear infinite;
+    pointer-events: none;
+    opacity: 0.6;
+}
+
+@keyframes toolRotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
 .doc-count {
     font-size: 0.7rem;
     font-weight: 600;

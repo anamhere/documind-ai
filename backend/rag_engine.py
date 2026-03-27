@@ -57,30 +57,57 @@ class RAGEngine:
             gemini_api_key: API key for Google Gemini
             data_dir: Directory to store documents, chunks, and vector index
         """
-        # === LLM Setup with Fallback Orchestration ===
-        # Configure Google Gemini API Key first!
+        # === LLM Setup ===
         genai.configure(api_key=gemini_api_key)
         
-        # Final Robust Model Priority for Alactic Interview 
-        # (Fallbacks from Gemini to Gemma 3 to guarantee availability)
+        # Final Robust Model Priority for the Alactic Interview
+        # Note: In the stable SDK, these MUST include the 'models/' prefix.
+        # We start with a baseline, then dynamically expand it on startup.
         self.model_priorities = [
-            "models/gemini-1.5-flash", 
-            "models/gemini-pro", 
-            "models/gemini-pro-preview-12-2025",
             "models/gemini-2.0-flash",
-            "models/gemma-3-4b-it"  # Final failover to Gemma (Confirmed working on site)
+            "models/gemini-1.5-flash",
+            "models/gemini-1.5-flash-8b", 
+            "models/gemma-3-4b-it", # Added high-availability Gemma-3 fallback
+            "models/gemma-3-12b-it",
+            "models/gemini-1.5-pro"
         ]
+        self.active_models = []
         self.llm = None 
-        print(f"RAG Engine Initialized. LLM will be lazy-loaded on first call.")
+        
+        # === Active Performance Calibration ===
+        # Auto-detect which models are ACTUALLY responding for THIS user key
+        print("RAG Engine: Calibrating Gemini acceleration tiers...")
+        try:
+            available = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+            for tier in self.model_priorities:
+                if tier in available:
+                    self.active_models.append(tier)
+            print(f"RAG Engine: Full acceleration hierarchy -> {', '.join(self.active_models)}")
+        except Exception as e:
+            print(f"Warning: Calibration failed ({e}). Using baseline hierarchy.")
+            self.active_models = self.model_priorities
 
         # === Embedding Setup ===
-        # We use Gemini's own embedding model: "models/text-embedding-004"
-        # It produces 768-dimensional vectors that capture semantic meaning
-        # The embedding model understands the MEANING of text, not just keywords
-        # Example: "car" and "automobile" would have very similar embeddings
-        self.embedding_model_name = "models/gemini-embedding-001"
-        self.embedding_dim = 768  # Gemini text-embedding-004 outputs 768-dim vectors
-        print("Using Gemini gemini-embedding-001 for embeddings (768-dim)")
+        # Resilient Embedding Hierarchy for the Alactic Demo
+        # Try newest models first, falling back to 001 for universal support.
+        self.embedding_model_priorities = [
+            "models/gemini-embedding-2-preview", 
+            "models/text-embedding-004", 
+            "models/embedding-001"
+        ]
+        self.embedding_model_name = "models/embedding-001" # Default fallback
+        self.embedding_dim = 768  
+        
+        # Auto-detect the best active embedding model for THIS user's API Key
+        try:
+            available_models = [m.name for m in genai.list_models() if 'embedContent' in m.supported_generation_methods]
+            for priority in self.embedding_model_priorities:
+                if priority in available_models:
+                    self.embedding_model_name = priority
+                    break
+            print(f"RAG Engine: Auto-detected Best Embedding Engine -> {self.embedding_model_name}")
+        except Exception as e:
+            print(f"Warning: Model discovery failed ({e}). Using default: {self.embedding_model_name}")
 
         # === Storage Setup ===
         self.data_dir = data_dir
@@ -176,16 +203,17 @@ class RAGEngine:
         print(f"Generating embeddings for {len(text_list)} chunks...")
         
         try:
-            # Gemini embedding API (processes in batches)
-            # Use task_type='retrieval_document' for indexing chunks
-            result = genai.embed_content(
-                model=self.embedding_model_name,
-                content=text_list,
-                task_type="retrieval_document"
-            )
-            
-            # Convert list of embeddings to NumPy array
-            embeddings = np.array(result['embedding'], dtype="float32")
+            embeddings = []
+            for text in text_list:
+                # Use the ultra-stable, universally compatible embedding call
+                response = genai.embed_content(
+                    model=self.embedding_model_name,
+                    content=text,
+                    task_type="retrieval_document"
+                )
+                embeddings.append(response['embedding'])
+
+            embeddings = np.array(embeddings, dtype="float32")
             return embeddings
             
         except Exception as e:
@@ -246,30 +274,8 @@ class RAGEngine:
                 "original_filename": original_filename,
             })
 
-        # Step 7: Generate an AI Summary (Resilient Triple-Retry)
-        print(f"Generating AI auto-summary for '{original_filename}'...")
-        import time
-        doc_info["summary"] = "AI is busy..." 
-        for attempt in range(3):
-            try:
-                sample_text = chunks[0] if chunks else ""
-                if len(chunks) > 1:
-                    sample_text += "\n" + chunks[len(chunks)//2]
-                
-                # Dynamic prompt: Focus on high-quality synthesis
-                prompt_text = "Provide a comprehensive, professional summary of the document." if attempt == 0 else "Summarize this in 1-2 detailed sentences."
-                summary_prompt = f"{prompt_text}\n\nExcerpt:\n{sample_text}"
-                
-                summary_response = self.generate_content_resilient(summary_prompt, generation_config=genai.GenerationConfig(max_output_tokens=512))
-                doc_info["summary"] = summary_response.text.strip()
-                break # Success!
-            except Exception as e:
-                if attempt < 2:
-                    print(f"Summary attempt {attempt+1} failed ({e}). Retrying in 2s...")
-                    time.sleep(2)
-                else:
-                    print(f"Warning: AI Summary failed after 3 attempts. Setting fallback.")
-                    doc_info["summary"] = "Summary not available (AI is busy)."
+        # Step 7: Finalize document (Summarization will happen in background via API task)
+        doc_info["summary"] = "AI is summarizing..." 
 
         # Step 8: Store document info
         self.documents[doc_id] = doc_info
@@ -280,6 +286,86 @@ class RAGEngine:
 
         return doc_info
 
+    # =========================================================================
+    # STEP 7: AUTOMATED SUMMARIZATION (Selection Grade Features)
+    # =========================================================================
+    def summarize_document(self, doc_id: str) -> str:
+        """
+        Gathers context from a document and generates a professional summary.
+        Updates the internal document record and saves state.
+        """
+        if doc_id not in self.documents:
+            return "Document not found."
+
+        doc_info = self.documents[doc_id]
+        original_filename = doc_info["original_filename"]
+        
+        # Get chunks belonging to THIS document
+        doc_chunks = [self.chunks[i] for i, meta in enumerate(self.chunk_metadata) if meta["doc_id"] == doc_id]
+        if not doc_chunks:
+            return "No document text found."
+
+        # Prepare sample text for context (Beginning + Middle)
+        sample_text = doc_chunks[0]
+        if len(doc_chunks) > 1:
+            sample_text += "\n" + doc_chunks[len(doc_chunks)//2]
+
+        print(f"Attempting summarization for '{original_filename}'...")
+        import time
+        
+        # Triple-retry with fallback logic
+        final_summary = "Summary not available (AI is busy)."
+        for attempt in range(3):
+            try:
+                # Dynamic prompt based on document type
+                is_web = doc_info.get("is_website", False)
+                if is_web:
+                    prompt = f"Summarize this webpage in 1 professional sentence. Be concise.\n\nExcerpt:\n{sample_text}"
+                else:
+                    prompt = f"Provide a comprehensive, professional summary of this document.\n\nExcerpt:\n{sample_text}"
+                
+                response = self.generate_content_resilient(
+                    prompt, 
+                    generation_config=genai.GenerationConfig(max_output_tokens=512)
+                )
+                
+                final_summary = response.text.strip()
+                print(f"[SUCCESS] Summarized '{original_filename}'.")
+                break
+            except Exception as e:
+                print(f"[RETRY] Summarization attempt {attempt+1} failed: {e}")
+                time.sleep(2)
+
+        # Update and persist
+        doc_info["summary"] = final_summary
+        self._save_state()
+        return final_summary
+
+    def summarize_missing_docs(self) -> dict:
+        """
+        Sweeps the document list and retries any with failed summaries.
+        """
+        retried = 0
+        succeeded = 0
+        
+        # Look for documents with placeholder summaries
+        placeholders = ["AI is busy...", "Summary not available", "AI summary busy"]
+        
+        for doc_id, info in self.documents.items():
+            current_summary = info.get("summary", "")
+            is_failed = any(p.lower() in current_summary.lower() for p in placeholders)
+            
+            if is_failed:
+                retried += 1
+                new_summary = self.summarize_document(doc_id)
+                if "busy" not in new_summary.lower():
+                    succeeded += 1
+        
+        return {
+            "total_documents": len(self.documents),
+            "retried": retried,
+            "succeeded": succeeded
+        }
     # =========================================================================
     # STEP 4: RETRIEVAL (Search)
     # =========================================================================
@@ -292,13 +378,14 @@ class RAGEngine:
         if self.vectors.shape[0] == 0:
             return []
 
-        # 1. Embed the query (using task_type='retrieval_query')
-        query_result = genai.embed_content(
+        # 1. Embed the query
+        # 1. Embed the query (using Task Type: retrieval_query)
+        response = genai.embed_content(
             model=self.embedding_model_name,
             content=query,
             task_type="retrieval_query"
         )
-        query_vector = np.array(query_result['embedding'], dtype="float32")
+        query_vector = np.array(response['embedding'], dtype="float32")
 
         # 2. Compute similarity (Dot product of normalized vectors = Cosine Similarity)
         # Normalize index vectors
@@ -326,46 +413,52 @@ class RAGEngine:
                 "score": float(similarities[idx]),
                 "metadata": self.chunk_metadata[idx]
             })
-
         return results
 
     # =========================================================================
     # STEP 5: GENERATE RESPONSE WITH LLM
     # =========================================================================
-    def generate_content_resilient(self, prompt: str, generation_config=None) -> Any:
+    def generate_content_resilient(self, prompt: str, generation_config: Optional[genai.GenerationConfig] = None) -> Any:
         """
-        Final Resilient Orchestrator: Tries multiple models + Exponential Backoff.
+        Unified, resilient content generation with multi-model fallback.
         This provides maximal uptime for the Alactic interview demo.
         """
         import time
-        from google.api_core import exceptions
         
-        last_error = None
-        for model_name in self.model_priorities:
-            # 2-stage retry for EACH model (to handle temporary 'minute' quotas)
+        # Try EACH active model in our discovered hierarchy until one succeeds
+        for model_name in self.active_models:
+            # Stage 2: Attempt with small internal retries for temporary quotas
             for attempt in range(2):
                 try:
-                    temp_model = genai.GenerativeModel(model_name)
-                    response = temp_model.generate_content(prompt, generation_config=generation_config)
-                    # Successful response!
-                    self.llm = temp_model
-                    return response
-                except exceptions.ResourceExhausted as e:
-                    # 429 Quota Error: Wait 2 seconds and retry once for this model
-                    if attempt == 0:
-                        print(f"Model {model_name} hit Quota (429). Waiting 2s for backoff...")
-                        time.sleep(2)
-                        continue
-                    else:
-                        print(f"Model {model_name} exhausted. Trying next fallback...")
-                        last_error = e
+                    model = genai.GenerativeModel(model_name)
+                    response = model.generate_content(
+                        prompt,
+                        generation_config=generation_config
+                    )
+                    
+                    if response and response.text:
+                        print(f"[SUCCESS] Generated via {model_name}.")
+                        self.llm = model_name
+                        return response
                 except Exception as e:
-                    # Other errors (404, etc.): Skip immediately
-                    print(f"Model {model_name} failed: {e}. Moving to next tier.")
-                    last_error = e
-                    break 
-        
-        raise last_error if last_error else Exception("All LLM models failed.")
+                    err_str = str(e).lower()
+                    
+                    # If it's a 429 quota error, retry after 2s or move to next tier
+                    if "429" in err_str or "quota" in err_str:
+                        if attempt == 0:
+                            print(f"[QUOTA] {model_name} is busy. Retrying in 2s...")
+                            time.sleep(2)
+                            continue
+                        else:
+                            print(f"[LIMIT] {model_name} exhausted. Switching tier...")
+                            break 
+                    else:
+                        # Non-quota error: Skip this tier immediately
+                        print(f"[RECOVERY] {model_name} failed: {e}. Moving to next tier...")
+                        break 
+
+        # All models failed: Last resort error
+        raise ValueError("All Gemini acceleration tiers are currently busy. Please try again in 10s.")
 
     def generate_response(self, query: str, chat_history: list = None) -> dict:
         """
@@ -479,7 +572,8 @@ STRICT RULES:
             "file_size_readable": f"{len(response.text)/1024:.1f} KB",
             "text_length": len(full_text),
             "chunk_count": 0,
-            "summary": "Scraping..."
+            "summary": "Scraping...", # Placeholder for summary
+            "is_website": True # Mark as website for summarization prompt
         }
 
         chunks = self.chunk_text(full_text)
@@ -499,22 +593,8 @@ STRICT RULES:
                 "original_filename": url,
             })
             
-        # Optional AI auto-summary (Triple-Retry)
-        import time
-        doc_info["summary"] = "AI is busy..."
-        for attempt in range(3):
-            try:
-                sample_text = chunks[0] if chunks else text[:500]
-                summary_prompt = f"Summarize this website in 1 professional sentence. Be concise.\n\nExcerpt:\n{sample_text}"
-                summary_response = self.generate_content_resilient(summary_prompt)
-                doc_info["summary"] = summary_response.text.strip()
-                break # Success!
-            except Exception as e:
-                if attempt < 2:
-                    print(f"Website Summary attempt {attempt+1} failed. Retrying in 2s...")
-                    time.sleep(2)
-                else:
-                    doc_info["summary"] = "Website scraped (AI summary busy)."
+        # Step 7: Finalize website (Summarization will happen in background via API task)
+        doc_info["summary"] = "AI is summarizing..."
             
         self.documents[doc_id] = doc_info
         self._save_state()

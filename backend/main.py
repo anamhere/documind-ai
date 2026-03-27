@@ -16,7 +16,7 @@ import shutil
 import uuid
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -83,7 +83,17 @@ app.add_middleware(
 # ─── Serve Frontend Static Files ─────────────────────────────────────────────
 frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")
 if os.path.isdir(frontend_dir):
+    # Mount the /static route for CSS, JS, etc.
     app.mount("/static", StaticFiles(directory=frontend_dir), name="static")
+
+    # Serve the main UI from the root (Unified Application)
+    @app.get("/")
+    async def serve_root():
+        """Serve the core DocuMind AI UI."""
+        index_path = os.path.join(frontend_dir, "index.html")
+        if os.path.exists(index_path):
+            return FileResponse(index_path)
+        return {"error": "Frontend index.html NOT FOUND. Please ensure folder structure /frontend and /backend."}
 
 
 # ─── Request/Response Models ─────────────────────────────────────────────────
@@ -140,7 +150,7 @@ async def health_check():
 
 
 @app.post("/api/upload")
-async def upload_document(file: UploadFile = File(...)):
+async def upload_document(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
     """
     Upload and process a document.
 
@@ -177,8 +187,11 @@ async def upload_document(file: UploadFile = File(...)):
             content = await file.read()
             buffer.write(content)
 
-        # Process document through RAG pipeline
+        # Process document through RAG pipeline (Indexing is sync, summary is background)
         doc_info = rag_engine.add_document(file_path, file.filename)
+        
+        # Trigger background summarization
+        background_tasks.add_task(rag_engine.summarize_document, doc_info["doc_id"])
 
         return {
             "doc_id": doc_info["doc_id"],
@@ -203,7 +216,7 @@ async def upload_document(file: UploadFile = File(...)):
 
 
 @app.post("/api/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest):
+async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
     """Process a chat query using the RAG engine or trigger automation tools."""
     global rag_engine
 
@@ -219,6 +232,9 @@ async def chat(request: ChatRequest):
             raise HTTPException(status_code=400, detail="URL cannot be empty for /web command.")
         try:
             doc_info = rag_engine.add_website(url)
+            
+            # Trigger background summarization
+            background_tasks.add_task(rag_engine.summarize_document, doc_info["doc_id"])
             return ChatResponse(
                 answer=f"✅ Successfully scraped **{url}** and added {doc_info['chunk_count']} chunks to my knowledge base. You can now ask me questions about it!",
                 sources=[],
@@ -277,6 +293,22 @@ async def list_documents():
     return {
         "documents": rag_engine.get_documents(),
         "total_chunks": len(rag_engine.chunks),
+    }
+
+
+@app.post("/api/summarize-all")
+async def summarize_all_docs(background_tasks: BackgroundTasks):
+    """Retries summarization for any documents with missing summaries."""
+    global rag_engine
+    if not rag_engine:
+        raise HTTPException(status_code=503, detail="RAG engine not initialized")
+    
+    # Trigger background sweep
+    background_tasks.add_task(rag_engine.summarize_missing_docs)
+    
+    return {
+        "status": "success",
+        "message": "Summarization sweep started in the background. Workspace will update shortly."
     }
 
 

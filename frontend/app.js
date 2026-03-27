@@ -14,6 +14,7 @@ const state = {
     documents: [],        // Array of document objects
     isLoading: false,     // Whether we're waiting for a response
     totalChunks: 0,       // Total chunks across all documents
+    pollingInterval: null // Interval for background refresh
 };
 
 // ─── DOM Elements ───────────────────────────────────────────────────────────
@@ -39,6 +40,7 @@ const elements = {
     totalChunks: document.getElementById('totalChunks'),
     indexSize: document.getElementById('indexSize'),
     bgParticles: document.getElementById('bgParticles'),
+    summarizeAllBtn: document.getElementById('summarizeAllBtn'),
 };
 
 // ─── Initialize Application ─────────────────────────────────────────────────
@@ -98,6 +100,11 @@ function initEventListeners() {
 
     // Clear chat
     elements.clearChatBtn.addEventListener('click', clearChat);
+
+    // Summarize all documents
+    if (elements.summarizeAllBtn) {
+        elements.summarizeAllBtn.addEventListener('click', summarizeAllDocs);
+    }
 
     // Sidebar toggle
     elements.sidebarToggle.addEventListener('click', toggleSidebar);
@@ -392,23 +399,80 @@ async function uploadFile(file) {
 }
 
 // ─── Document Management ────────────────────────────────────────────────────
+async function summarizeAllDocs() {
+    if (state.isLoading) return;
+    
+    state.isLoading = true;
+    elements.summarizeAllBtn.classList.add('loading');
+    setStatus('Summarizing workspace documents...', true);
+    
+    try {
+        const response = await fetch(`${API_BASE}/api/summarize-all`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        if (!response.ok) throw new Error('Failed to summarize documents.');
+        
+        const data = await response.json();
+        showToast('success', data.message);
+        
+        // Refresh the document list to show new summaries
+        await loadDocuments();
+        
+    } catch (error) {
+        console.error('Summarization error:', error);
+        showToast('error', error.message);
+    } finally {
+        state.isLoading = false;
+        elements.summarizeAllBtn.classList.remove('loading');
+        setStatus('Ready — Upload a document to begin', false);
+    }
+}
+
 async function loadDocuments() {
     try {
         const response = await fetch(`${API_BASE}/api/documents`);
         if (!response.ok) throw new Error('Failed to load documents');
 
         const data = await response.json();
-        state.documents = data.documents || [];
-        state.totalChunks = data.total_chunks || 0;
-
+        state.documents = Array.isArray(data) ? data : (data.documents || []);
+        
         renderDocumentList();
         updateStats();
+
+        // Start polling if any document is still "Summarizing..."
+        startPollingIfProcessing();
 
     } catch (error) {
         console.error('Failed to load documents:', error);
     }
 }
 
+/**
+ * Intelligent Background Polling
+ * Refreshes the document list while AI is working in the background.
+ */
+function startPollingIfProcessing() {
+    const isProcessing = state.documents.some(doc => 
+        doc.summary && (
+            doc.summary.toLowerCase().includes('summarizing') || 
+            doc.summary.toLowerCase().includes('processing') ||
+            doc.summary.toLowerCase().includes('scraping')
+        )
+    );
+
+    if (isProcessing && !state.pollingInterval) {
+        console.log("RAG: AI is working in background. Starting UI polling...");
+        state.pollingInterval = setInterval(async () => {
+            await loadDocuments();
+        }, 3000);
+    } else if (!isProcessing && state.pollingInterval) {
+        console.log("RAG: All documents summarized. Stopping polling.");
+        clearInterval(state.pollingInterval);
+        state.pollingInterval = null;
+    }
+}
 function renderDocumentList() {
     // Update count
     elements.docCount.textContent = state.documents.length;
