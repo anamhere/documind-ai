@@ -437,6 +437,7 @@ async function loadDocuments() {
 
         const data = await response.json();
         state.documents = Array.isArray(data) ? data : (data.documents || []);
+        state.totalChunks = data.total_chunks || state.documents.reduce((sum, d) => sum + (d.chunk_count || 0), 0);
         
         renderDocumentList();
         updateStats();

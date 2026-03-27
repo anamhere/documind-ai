@@ -603,10 +603,38 @@ STRICT RULES:
     def export_report(self, query: str) -> str:
         """
         Agentic Automation: Generate a full Markdown report based on RAG context.
+        If the query is about summarizing all documents, gather from all sources.
         """
-        search_results = self.search(query, top_k=15)
+        # Detect "summarize all" type queries
+        all_keywords = ["all document", "summarize all", "everything", "full report", "all files"]
+        is_all_query = any(kw in query.lower() for kw in all_keywords)
+        
+        if is_all_query and self.chunks:
+            # Grab representative chunks from EVERY document
+            search_results = []
+            seen_docs = set()
+            for i, meta in enumerate(self.chunk_metadata):
+                doc_id = meta["doc_id"]
+                if doc_id not in seen_docs:
+                    seen_docs.add(doc_id)
+                    search_results.append({
+                        "text": self.chunks[i],
+                        "metadata": meta
+                    })
+                    # Also grab a middle chunk for more context
+                    mid_chunks = [j for j, m in enumerate(self.chunk_metadata) if m["doc_id"] == doc_id]
+                    if len(mid_chunks) > 1:
+                        mid_idx = mid_chunks[len(mid_chunks)//2]
+                        search_results.append({
+                            "text": self.chunks[mid_idx],
+                            "metadata": self.chunk_metadata[mid_idx]
+                        })
+        else:
+            search_results = self.search(query, top_k=15)
+        
         if not search_results:
             raise ValueError("No context found for report generation.")
+
             
         context_string = ""
         for i, res in enumerate(search_results):
