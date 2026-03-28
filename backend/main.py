@@ -304,7 +304,7 @@ async def summarize_all_docs(background_tasks: BackgroundTasks):
         raise HTTPException(status_code=503, detail="RAG engine not initialized")
     
     # Trigger background sweep
-    background_tasks.add_task(rag_engine.summarize_missing_docs)
+    background_tasks.add_task(rag_engine.summarize_all_docs)
     
     return {
         "status": "success",

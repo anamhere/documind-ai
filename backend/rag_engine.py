@@ -341,29 +341,26 @@ class RAGEngine:
         self._save_state()
         return final_summary
 
-    def summarize_missing_docs(self) -> dict:
+    def summarize_all_docs(self) -> dict:
         """
-        Sweeps the document list and retries any with failed summaries.
+        Sweeps the document list and summarizes ALL documents, ignoring previous summary states.
         """
-        retried = 0
+        processed = 0
         succeeded = 0
         
-        # Look for documents with placeholder summaries
-        placeholders = ["AI is busy...", "Summary not available", "AI summary busy"]
-        
         for doc_id, info in self.documents.items():
-            current_summary = info.get("summary", "")
-            is_failed = any(p.lower() in current_summary.lower() for p in placeholders)
+            processed += 1
+            # Temporarily mark as summarizing so frontend polling continues
+            info["summary"] = "AI is summarizing..."
+            self._save_state()
             
-            if is_failed:
-                retried += 1
-                new_summary = self.summarize_document(doc_id)
-                if "busy" not in new_summary.lower():
-                    succeeded += 1
+            new_summary = self.summarize_document(doc_id)
+            if "busy" not in new_summary.lower() and "not available" not in new_summary.lower():
+                succeeded += 1
         
         return {
             "total_documents": len(self.documents),
-            "retried": retried,
+            "processed": processed,
             "succeeded": succeeded
         }
     # =========================================================================
