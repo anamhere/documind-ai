@@ -384,6 +384,14 @@ async function uploadFile(file) {
         // Reload document list
         await loadDocuments();
 
+        // Auto-close sidebar on mobile after successful upload
+        if (window.innerWidth <= 768) {
+            const overlay = document.querySelector('.sidebar-overlay');
+            if (overlay && overlay.classList.contains('active')) {
+                toggleMobileSidebar();
+            }
+        }
+
         // Update status
         setStatus(`${state.documents.length} document(s) indexed — Ask me anything!`);
 
@@ -424,9 +432,16 @@ async function summarizeAllDocs() {
         console.error('Summarization error:', error);
         showToast('error', error.message);
     } finally {
-        state.isLoading = false;
         elements.summarizeAllBtn.classList.remove('loading');
         setStatus('Ready — Upload a document to begin', false);
+        
+        // Auto-close sidebar on mobile after summarization
+        if (window.innerWidth <= 768) {
+            const overlay = document.querySelector('.sidebar-overlay');
+            if (overlay && overlay.classList.contains('active')) {
+                toggleMobileSidebar();
+            }
+        }
     }
 }
 
