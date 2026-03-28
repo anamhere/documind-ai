@@ -72,4 +72,3 @@ graph TD
 ## 🏆 Selection Rationale (For Alactic Inc)
 DocuMind AI focuses on **Reliability Engineering**. It was built to stay alive during high-pressure demonstrations by handling Rate Limits (429) and Model Availability (404) gracefully. This showcases proactive system design beyond a standard student application.
 
-**Built with ❤️ for the Alactic Internship selection.**
