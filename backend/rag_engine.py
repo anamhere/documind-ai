@@ -1,19 +1,8 @@
 """
-RAG (Retrieval Augmented Generation) Engine
-============================================
-This is the CORE of DocuMind AI. It implements the complete RAG pipeline:
-
-1. CHUNKING    — Split documents into smaller, overlapping pieces
-2. EMBEDDING   — Convert text chunks into numerical vectors (embeddings)
-3. INDEXING    — Store embeddings in a vector index for fast retrieval
-4. RETRIEVAL   — Find the most relevant chunks for a user query
-5. GENERATION  — Use retrieved context + query to generate an answer via Gemini
-
-WHY RAG?
-- LLMs have knowledge cutoffs (they don't know about YOUR documents)
-- LLMs can hallucinate (make up facts)
-- RAG grounds the LLM's responses in YOUR actual data
-- Result: Accurate, source-cited answers from your documents
+DocuMind AI — RAG Engine
+========================
+Core retrieval and generation logic for document intelligence. 
+Implements chunking, embedding, indexing, and context-grounded response generation.
 """
 
 import os
@@ -35,18 +24,8 @@ if sys.platform == "win32":
 
 class RAGEngine:
     """
-    The complete RAG pipeline for document question-answering.
-
-    Architecture:
-    ┌──────────┐    ┌──────────┐    ┌────────┐    ┌──────────┐
-    │ Document │───▶│ Chunking │───▶│ Embed  │───▶│  Vector  │
-    │  Upload  │    │          │    │        │    │  Index   │
-    └──────────┘    └──────────┘    └────────┘    └──────────┘
-                                                       │
-    ┌──────────┐    ┌──────────┐    ┌────────┐         │
-    │  Answer  │◀───│  Gemini  │◀───│Context │◀────────┘
-    │          │    │   LLM    │    │  + Q   │
-    └──────────┘    └──────────┘    └────────┘
+    RAG Pipeline implementation for document-based question-answering.
+    Utilizes semantic search on vectorized text chunks.
     """
 
     def __init__(self, gemini_api_key: str, data_dir: str = "data"):
@@ -138,20 +117,7 @@ class RAGEngine:
         chunk_overlap: int = 100,
     ) -> list[str]:
         """
-        Split text into overlapping chunks.
-
-        WHY CHUNKING?
-        - LLMs have token limits (can't process entire books at once)
-        - Smaller chunks = more precise retrieval
-        - Overlapping ensures we don't lose context at chunk boundaries
-
-        Args:
-            text: The full document text
-            chunk_size: Number of characters per chunk
-            chunk_overlap: Number of overlapping characters between chunks
-
-        Returns:
-            List of text chunks
+        Splits raw text into overlapping segments to maintain context and improve retrieval.
         """
         if not text or len(text.strip()) == 0:
             return []

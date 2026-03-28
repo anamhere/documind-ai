@@ -617,7 +617,7 @@ function toggleSidebar() {
 }
 
 function toggleMobileSidebar() {
-    elements.sidebar.classList.toggle('mobile-open');
+    const isOpen = elements.sidebar.classList.toggle('mobile-open');
 
     // Handle overlay
     let overlay = document.querySelector('.sidebar-overlay');
@@ -630,7 +630,13 @@ function toggleMobileSidebar() {
             overlay.classList.remove('active');
         });
     }
-    overlay.classList.toggle('active');
+    
+    // Exact synchronization
+    if (isOpen) {
+        overlay.classList.add('active');
+    } else {
+        overlay.classList.remove('active');
+    }
 }
 
 // ─── Toast Notifications ────────────────────────────────────────────────────

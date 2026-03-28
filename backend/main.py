@@ -121,6 +121,11 @@ class DocumentResponse(BaseModel):
 
 # ─── API Endpoints ───────────────────────────────────────────────────────────
 
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    """Serve a default favicon to prevent 404 errors in the terminal."""
+    return FileResponse(os.path.join(frontend_dir, "index.html")) # Or just a 204 No Content
+
 @app.get("/")
 async def root():
     """Serve the frontend HTML page."""

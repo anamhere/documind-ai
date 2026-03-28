@@ -1148,7 +1148,7 @@ body {
         top: 0;
         height: 100vh;
         height: 100dvh;
-        z-index: 1000; /* High z-index to be above everything including overlay */
+        z-index: 1001; /* Higher than overlay (1000) */
         transform: translateX(-100%);
         box-shadow: var(--shadow-lg);
     }
@@ -1255,9 +1255,9 @@ body {
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(4px);
-    z-index: 999; /* Higher than particles and header, lower than sidebar */
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: none; /* Removed blur to prevent Interaction issues on some mobiles */
+    z-index: 1000; 
 }
 
 .sidebar-overlay.active {

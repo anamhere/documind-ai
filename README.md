@@ -1,75 +1,77 @@
-# 🚀 DocuMind AI — Agentic RAG Assistant
+# DocuMind AI — RAG-Powered Document Assistant
 
-DocuMind AI is a production-grade, "Self-Healing" Agentic RAG (Retrieval Augmented Generation) Assistant designed for seamless document intelligence. Built with **FastAPI**, **Google Gemini**, and a custom-engineered **NumPy Vector Index**, it overcomes standard RAG limitations with automated resilience.
-
----
-
-## 🌟 Key Features
-
-### 🧠 Self-Healing Model Orchestrator
-DocuMind AI features a sophisticated **Multi-Model Fallback** system. If a specific Gemini model hits its free-tier quota (429) or is unavailable, the backend automatically and silently shifts the conversation to the next available model (e.g., `Gemini 1.5-Flash` → `Gemini Pro` → `Gemma 3`). 
-
-### 🌐 Portal-Aware Intelligent Scraper
-Standard scrapers fail on modern Single Page Applications (SPAs). Our scraper uses **Metadata Fallback** and **Deep Tag Extraction** to successfully "read" sites like `alactic.io` and `wikipedia.org`, even when the main body content is hidden.
-
-### 📄 Universal Document Support
--   **PDF:** High-fidelity text extraction via PyPDF2.
--   **Word (DOCX):** Full support for professional business documents.
--   **Markdown/Text:** Seamless ingestion of codebases and notes.
--   **Web URLs:** Instant agentic scraping into the Knowledge Base.
-
-### 🛰️ Mobile-First Responsive Design
-The entire interface has been meticulously optimized for mobile devices. Featuring a **Collapsible Glassmorphism Sidebar**, auto-truncating headers, and fluid chat bubbles, DocuMind AI provides a premium experience on everything from an iPhone to a 4K Desktop.
-
-### 🛡️ Sync-Integrity Guardian
-A custom-built **Vector Watchdog** that detects and repairs "ghost data" or desynchronization between the database and the vector index on startup, ensuring 100% stability.
+DocuMind AI is a professional Document Intelligence Assistant built with **FastAPI**, **Google Gemini**, and a custom **NumPy Vector Index**. It provides a robust, resilient RAG (Retrieval Augmented Generation) pipeline for intelligent document analysis and conversational intelligence.
 
 ---
 
-## 🛠️ Architecture
+## Key Features
 
-```mermaid
-graph TD
-    A[Frontend: Vanilla CSS/JS] -->|API| B[FastAPI Backend]
-    B -->|Ingest| C[Document Processor]
-    C -->|Embeddings| D[NumPy Vector Search]
-    B -->|Agentic Commands| E[Scraper/Exporter]
-    E -->|Context| F[Resilient LLM Orchestrator]
-    F -->|Fallback| G[Gemini 1.5/2.0 / Gemma 3]
-    G -->|Response| B
-```
+### Resilient Model Orchestrator
+DocuMind AI features an automated **Multi-Model Fallback** system. If a Gemini model hits quota limits or is unavailable, the backend automatically shifts to the next available tier (e.g., `Gemini 1.5-Flash` → `Gemini Pro` → `Gemma 3`), ensuring high availability.
+
+### Intelligent Content Scraping
+Uses specialized extraction logic to scrape modern Single Page Applications (SPAs) and portals. It handles metadata fallback and deep tag extraction to ensure comprehensive knowledge ingestion.
+
+### Universal Document Support
+- **PDF:** High-fidelity text extraction via PyPDF2.
+- **Word (DOCX):** Support for professional business documents.
+- **Markdown/Text:** Seamless ingestion of codebases and documentation.
+- **Web URLs:** Instant scraping into the local Knowledge Base.
+
+### Responsive UI/UX
+Optimized for both desktop and mobile devices. Features a glassmorphism sidebar, fluid chat interactions, and real-time processing status.
 
 ---
 
-## 🏃‍♂️ Quick Start (Local)
+## Architecture
 
-1. **Backend:**
+The system follows a standard RAG pipeline:
+1. **Frontend**: Vanilla JS/CSS communicating via REST API.
+2. **Backend**: FastAPI orchestrating the document pipeline.
+3. **Processing**: Text extraction, overlap chunking, and embedding generation.
+4. **Search**: NumPy-based cosine similarity for fast context retrieval.
+5. **LLM**: Context-grounded generation with automated fallback logic.
+
+---
+
+## Local Development
+
+### 1. Backend Setup
+1. Navigate to the `backend` directory:
    ```bash
    cd backend
+   ```
+2. Create and activate a virtual environment:
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # Windows: .\venv\Scripts\activate
+   ```
+3. Install dependencies:
+   ```bash
    pip install -r requirements.txt
-   # Add GEMINI_API_KEY to .env
+   ```
+4. Set your `GEMINI_API_KEY` in the `.env` file.
+5. Start the server:
+   ```bash
    python main.py
    ```
 
-2. **Frontend:**
-   Open `frontend/index.html` in any browser or use a Live Server.
+### 2. Accessing the Application
+The FastAPI backend serves the frontend automatically. Once the server is running, open:
+`http://localhost:8000`
 
 ---
 
-## ☁️ Deployment Guide (Unified Strategy)
+## Deployment Configuration
 
-DocuMind AI is configured as a **Unified Application**—the FastAPI backend serves the frontend static files automatically. This simplifies deployment to a single service.
+The project is configured for unified deployment on platforms like Render or Railway. 
 
-### 🛡️ Render.com / Railway / Heroku
-1.  Link your GitHub repository to your hosting provider.
-2.  Environment: `Python 3`.
-3.  Build Command: `pip install -r requirements.txt`.
-4.  Start Command: `gunicorn backend.main:app -k uvicorn.workers.UvicornWorker` (or see `Procfile`).
-5.  Add `GEMINI_API_KEY` to the **Environment Variables**.
-6.  The app will be live at your provided URL! No separate frontend deployment needed.
+- **Runtime**: Python 3.10+
+- **Build Command**: `pip install -r requirements.txt`
+- **Start Command**: `gunicorn backend.main:app -k uvicorn.workers.UvicornWorker`
 
 ---
 
-## 🏆 Selection Rationale (For Alactic Inc)
-DocuMind AI focuses on **Reliability Engineering**. It was built to stay alive during high-pressure demonstrations by handling Rate Limits (429) and Model Availability (404) gracefully. This showcases proactive system design beyond a standard student application.
+## Technical Rationale
+Built as a demonstration of **Reliability Engineering** in AI applications. The focus is on handling API constraints (Rate Limits, Model Availability) gracefully through intelligent orchestrators, providing a stable experience for end-users.
 
