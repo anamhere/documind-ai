@@ -18,6 +18,9 @@ Standard scrapers fail on modern Single Page Applications (SPAs). Our scraper us
 -   **Markdown/Text:** Seamless ingestion of codebases and notes.
 -   **Web URLs:** Instant agentic scraping into the Knowledge Base.
 
+### 🛰️ Mobile-First Responsive Design
+The entire interface has been meticulously optimized for mobile devices. Featuring a **Collapsible Glassmorphism Sidebar**, auto-truncating headers, and fluid chat bubbles, DocuMind AI provides a premium experience on everything from an iPhone to a 4K Desktop.
+
 ### 🛡️ Sync-Integrity Guardian
 A custom-built **Vector Watchdog** that detects and repairs "ghost data" or desynchronization between the database and the vector index on startup, ensuring 100% stability.
 
@@ -53,19 +56,17 @@ graph TD
 
 ---
 
-## ☁️ Deployment Guide
+## ☁️ Deployment Guide (Unified Strategy)
 
-### 🛡️ Backend (Render.com)
-1.  Link your GitHub repository to **Render.com**.
-2.  Choose **Web Service**.
-3.  Environment: `Python 3`.
-4.  Build Command: `pip install -r requirements.txt`.
-5.  Start Command: `uvicorn main:app --host 0.0.0.0 --port $PORT`.
-6.  Add `GEMINI_API_KEY` to the **Environment Variables** in Render.
+DocuMind AI is configured as a **Unified Application**—the FastAPI backend serves the frontend static files automatically. This simplifies deployment to a single service.
 
-### ⚛️ Frontend (Vercel/Netlify)
-1.  Upload the `frontend` directory.
-2.  Update `BASE_URL` in `app.js` to point to your new Render URL.
+### 🛡️ Render.com / Railway / Heroku
+1.  Link your GitHub repository to your hosting provider.
+2.  Environment: `Python 3`.
+3.  Build Command: `pip install -r requirements.txt`.
+4.  Start Command: `gunicorn backend.main:app -k uvicorn.workers.UvicornWorker` (or see `Procfile`).
+5.  Add `GEMINI_API_KEY` to the **Environment Variables**.
+6.  The app will be live at your provided URL! No separate frontend deployment needed.
 
 ---
 
